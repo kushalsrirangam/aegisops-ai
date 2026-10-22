@@ -1,0 +1,9 @@
+{
+  "title": "Checkout API returns HTTP 500 after deployment",
+  "description": "After release v2.4.1, checkout requests fail with HTTP 500. Logs show a missing customer_tier column; migration is pending.",
+  "service": "checkout-api",
+  "evidence": {
+    "logs": ["10:02 deploy v2.4.1 completed", "10:04 DatabaseError: column customer_tier does not exist", "10:05 migration 2026_10_22_add_customer_tier pending"],
+    "error_rate": 0.37
+  }
+}

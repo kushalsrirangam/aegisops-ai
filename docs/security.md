@@ -1,0 +1,3 @@
+# Security boundary
+
+The app is a local demo without authentication or RBAC. Do not expose its write endpoints on the public internet. Agents produce analysis and proposals only. Approval records a decision; it does not run an action. Bedrock receives limited incident text and logs; never submit sensitive production logs without an approved data handling plan. Retrieved runbooks are displayed as cited data and cannot change graph instructions or allowed tools. The policy denylist is intentionally narrow and must be replaced before production use. CloudWatch uses read-only API calls under an operator-supplied IAM role. Secrets belong in environment or a managed secret store, never Git.

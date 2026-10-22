@@ -1,0 +1,17 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "ReadConfiguredCloudWatchLogs",
+      "Effect": "Allow",
+      "Action": ["logs:FilterLogEvents"],
+      "Resource": "arn:aws:logs:REGION:ACCOUNT_ID:log-group:/ecs/aegisops/*:*"
+    },
+    {
+      "Sid": "InvokeConfiguredBedrockModel",
+      "Effect": "Allow",
+      "Action": ["bedrock:InvokeModel"],
+      "Resource": "arn:aws:bedrock:REGION::foundation-model/MODEL_ID"
+    }
+  ]
+}
