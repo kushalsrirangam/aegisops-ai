@@ -126,7 +126,7 @@ cd ..
 docker compose config
 ```
 
-Tests cover graph routes, confidence escalation, blocked operations, cited retrieval, incident API, approval and rejection, failure responses, and a key UI disclosure. [Evaluation notes](docs/evaluation.md) describe what these tests do and do not prove.
+Tests cover graph routes, confidence escalation, blocked operations, cited retrieval, incident API, approval and rejection, failure responses, and a key UI disclosure. Backend CI also starts a fresh PostgreSQL 16 and pgvector service, applies Alembic migrations, and tests vector search plus both decision paths and persisted records. The integration test runs locally when `INTEGRATION_DATABASE_URL` points to a separate migrated test database. [Evaluation notes](docs/evaluation.md) describe what these tests do and do not prove.
 
 ## Bedrock and AWS
 

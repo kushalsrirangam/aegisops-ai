@@ -27,3 +27,4 @@ ignore = ["B008"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+markers = ["integration: requires a migrated PostgreSQL database with pgvector"]
