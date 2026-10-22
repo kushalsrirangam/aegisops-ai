@@ -56,7 +56,7 @@ The **supervisor** routes by evidence confidence. **Triage** classifies severity
 Install Docker Desktop with Compose. On Windows, start Docker Desktop before running Compose. Ports **5173** and **8000** must be free.
 
 ```bash
-git clone <repository-url>
+git clone https://github.com/kushalsrirangam/aegisops-ai.git
 cd aegisops-ai
 cp .env.example .env
 docker compose up --build
@@ -65,7 +65,7 @@ docker compose up --build
 PowerShell:
 
 ```powershell
-git clone <repository-url>
+git clone https://github.com/kushalsrirangam/aegisops-ai.git
 Set-Location aegisops-ai
 Copy-Item .env.example .env
 docker compose up --build
