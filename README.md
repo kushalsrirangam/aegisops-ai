@@ -71,7 +71,13 @@ Copy-Item .env.example .env
 docker compose up --build
 ```
 
-The frontend is at [http://localhost:5173](http://localhost:5173), the API at [http://localhost:8000](http://localhost:8000), and Swagger at [http://localhost:8000/docs](http://localhost:8000/docs). The backend applies the initial migration and loads one synthetic incident and runbook on startup. Open the seeded incident, select **Run investigation**, review the trace and proposal, then approve or reject it. Both paths persist a report. `docker compose down` stops services; `docker compose down -v` also removes local database data.
+The frontend is at [http://localhost:5173](http://localhost:5173), the API at [http://localhost:8000](http://localhost:8000), and Swagger at [http://localhost:8000/docs](http://localhost:8000/docs). The backend applies migrations and loads one synthetic incident and runbook on startup. Create your first local admin account in another terminal:
+
+```bash
+docker compose exec backend python -m app.core.users_cli create-user --email you@example.com --role admin
+```
+
+The command prompts for a password of at least 12 characters; no shared password is shipped. Sign in at the frontend, open the seeded incident, select **Run investigation**, review the trace and proposal, then approve or reject it. Both paths persist a report. `docker compose down` stops services; `docker compose down -v` also removes local database data.
 
 ## Configuration
 
@@ -126,7 +132,7 @@ cd ..
 docker compose config
 ```
 
-Tests cover graph routes, confidence escalation, blocked operations, cited retrieval, incident API, approval and rejection, failure responses, and a key UI disclosure. Backend CI also starts a fresh PostgreSQL 16 and pgvector service, applies Alembic migrations, and tests vector search plus both decision paths and persisted records. The integration test runs locally when `INTEGRATION_DATABASE_URL` points to a separate migrated test database. [Evaluation notes](docs/evaluation.md) describe what these tests do and do not prove.
+Tests cover graph routes, confidence escalation, blocked operations, cited retrieval, incident API, authenticated role checks, approval and rejection, failure responses, and a key UI disclosure. Backend CI also starts a fresh PostgreSQL 16 and pgvector service, applies Alembic migrations, and tests vector search plus both decision paths and persisted records. The integration test runs locally when `INTEGRATION_DATABASE_URL` points to a separate migrated test database. [Evaluation notes](docs/evaluation.md) describe what these tests do and do not prove.
 
 ## Bedrock and AWS
 
@@ -134,7 +140,7 @@ Set `APP_MODE=bedrock` for a separate deployment of the backend, configure `AWS_
 
 ## Security and approval model
 
-This local demo has **no authentication or per-user authorization**. Do not expose it publicly. API input is validated; model outputs are schema checked; retrieved runbooks are treated as data; AWS access is read-only; agents never execute shell or infrastructure operations. Approval creates an audit record and advances report generation, never a deployment. The security agent uses a basic denylist, which is not a production policy engine. See [security](docs/security.md).
+This local demo requires sign-in. Operators can create incidents, run investigations, and add runbooks; reviewers can approve or reject; admins can do both. Passwords are salted and hashed with scrypt; bearer sessions expire after 12 hours and can be revoked by signing out. No default account is shipped. This is still **not a production identity system**: there is no SSO, account lockout, MFA, or administrative user lifecycle API. Do not expose it publicly. API input is validated; model outputs are schema checked; retrieved runbooks are treated as data; AWS access is read-only; agents never execute shell or infrastructure operations. Approval creates an audit record and advances report generation, never a deployment. The security agent uses a basic denylist, which is not a production policy engine. See [security](docs/security.md).
 
 ## Demo versus production
 
@@ -146,7 +152,7 @@ This local demo has **no authentication or per-user authorization**. Do not expo
 | Bedrock hypothesis | Optional integration; requires AWS access |
 | CloudWatch logs | Optional read-only integration; fixed log group convention |
 | Live CloudWatch metric mapping | Not implemented |
-| Production authentication, RBAC, rate limits | Not implemented |
+| Local authentication and RBAC | Implemented; SSO, MFA, account recovery, and rate limits remain open |
 | Durable LangGraph checkpoint store | Run state is persisted relationally and rehydrated; native LangGraph checkpointing is not implemented |
 | ECS/Fargate Terraform deployment | IAM policy generation module only; no deployable application stack |
 

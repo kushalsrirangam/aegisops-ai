@@ -8,6 +8,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, select, text
 from sqlalchemy.orm import Session
 
+from app.core.auth import create_user, issue_session
 from app.core.db import get_db
 from app.main import app
 from app.models.entities import AgentRun, Approval, KnowledgeChunk, Proposal, Report
@@ -33,6 +34,12 @@ def postgres_client():
     app.dependency_overrides[get_db] = override
     try:
         with TestClient(app) as client:
+            with Session(engine) as session:
+                user = create_user(
+                    session, f"integration-{uuid4().hex}@example.test", "strong-test-password", "admin"
+                )
+                token, _ = issue_session(session, user)
+            client.headers.update({"Authorization": f"Bearer {token}"})
             yield client, engine
     finally:
         app.dependency_overrides.pop(get_db, None)
@@ -48,7 +55,7 @@ def test_postgres_workflow(postgres_client, decision, expected_status):
     source = f"integration/{token}/migration-runbook.md"
     with engine.connect() as connection:
         assert connection.scalar(text("SELECT 1 FROM pg_extension WHERE extname = 'vector'")) == 1
-        assert connection.scalar(text("SELECT version_num FROM alembic_version")) == "0001"
+        assert connection.scalar(text("SELECT version_num FROM alembic_version")) == "0002"
         assert connection.scalar(
             text("SELECT format_type(atttypid, atttypmod) FROM pg_attribute "
                  "WHERE attrelid = 'knowledge_chunks'::regclass AND attname = 'embedding'")

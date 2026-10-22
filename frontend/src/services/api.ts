@@ -2,7 +2,15 @@ import type { Agent, Document, Incident, Proposal, Report, Run, RunDetail, Searc
 
 const base = '/api/v1'
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(base + path, { headers: { 'Content-Type': 'application/json' }, ...init })
+  const token = sessionStorage.getItem('aegisops_token')
+  const response = await fetch(base + path, {
+    ...init,
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...init?.headers,
+    },
+  })
   if (!response.ok) {
     let detail = response.statusText
     try { detail = (await response.json()).detail ?? detail } catch { /* keep status text */ }
@@ -12,6 +20,9 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 const post = <T,>(path: string, body: unknown = {}) => request<T>(path, { method: 'POST', body: JSON.stringify(body) })
 export const api = {
+  login: (email: string, password: string) => post<{ access_token: string; user: { email: string; role: string } }>('/auth/login', { email, password }),
+  me: () => request<{ email: string; role: 'operator' | 'reviewer' | 'admin' }>('/auth/me'),
+  logout: () => post<{ status: string }>('/auth/logout'),
   health: () => request<{ status: string; mode: string }>('/health'),
   incidents: () => request<Incident[]>('/incidents'),
   incident: (id: number) => request<Incident>(`/incidents/${id}`),
@@ -20,7 +31,7 @@ export const api = {
   timeline: (id: number) => request<{ kind: string; message: string; created_at: string }[]>(`/incidents/${id}/timeline`),
   report: (id: number) => request<Report>(`/incidents/${id}/report`),
   proposal: (id: number) => request<Proposal>(`/incidents/${id}/proposal`),
-  decide: (id: number, choice: 'approve' | 'reject', actor: string, reason: string) => post<Report>(`/approvals/${id}/${choice}`, { actor, reason }),
+  decide: (id: number, choice: 'approve' | 'reject', reason: string) => post<Report>(`/approvals/${id}/${choice}`, { reason }),
   agents: () => request<Agent[]>('/agents'),
   runs: () => request<Run[]>('/agents/runs'),
   run: (id: number) => request<RunDetail>(`/agents/runs/${id}`),

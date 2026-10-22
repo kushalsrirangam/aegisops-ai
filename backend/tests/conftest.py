@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 
 from app.core.db import Base, get_db
+from app.core.auth import create_user, issue_session
 from app.main import app
 from app.models import entities  # noqa: F401
 
@@ -27,5 +28,8 @@ def client(db):
 
     app.dependency_overrides[get_db] = override
     with TestClient(app) as test_client:
+        user = create_user(db, "admin@example.test", "strong-test-password", "admin")
+        token, _ = issue_session(db, user)
+        test_client.headers.update({"Authorization": f"Bearer {token}"})
         yield test_client
     app.dependency_overrides.clear()
