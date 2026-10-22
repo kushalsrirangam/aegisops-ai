@@ -12,7 +12,13 @@ depends_on = None
 def upgrade() -> None:
     if op.get_bind().dialect.name == "postgresql":
         op.execute("CREATE EXTENSION IF NOT EXISTS vector")
-    Base.metadata.create_all(bind=op.get_bind())
+    # Keep the original revision stable as later models are added.
+    tables = [
+        table
+        for table in Base.metadata.sorted_tables
+        if table.name not in {"users", "auth_sessions"}
+    ]
+    Base.metadata.create_all(bind=op.get_bind(), tables=tables)
 
 
 def downgrade() -> None:

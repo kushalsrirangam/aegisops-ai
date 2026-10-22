@@ -3,7 +3,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.core.config import get_settings
+from app.core.auth import current_user, require_role
 from app.core.db import get_db
 from app.models.entities import (
     AgentRun,
@@ -12,17 +12,13 @@ from app.models.entities import (
     KnowledgeDocument,
     Proposal,
     Report,
+    User,
 )
 from app.rag.retrieval import ingest, retrieve
 from app.schemas.api import DecisionIn, DocumentIn, IncidentCreate, IncidentOut
 from app.services import incidents as service
 
-router = APIRouter(prefix="/api/v1")
-
-
-@router.get("/health")
-def health() -> dict:
-    return {"status": "ok", "mode": get_settings().app_mode}
+router = APIRouter(prefix="/api/v1", dependencies=[Depends(current_user)])
 
 
 @router.get("/incidents", response_model=list[IncidentOut])
@@ -37,7 +33,11 @@ def incidents(
 
 
 @router.post("/incidents", response_model=IncidentOut, status_code=201)
-def create_incident(payload: IncidentCreate, db: Session = Depends(get_db)):
+def create_incident(
+    payload: IncidentCreate,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_role("operator")),
+):
     return service.create_incident(db, **payload.model_dump())
 
 
@@ -47,7 +47,11 @@ def incident(incident_id: int, db: Session = Depends(get_db)):
 
 
 @router.post("/incidents/{incident_id}/analyze")
-def analyze(incident_id: int, db: Session = Depends(get_db)):
+def analyze(
+    incident_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_role("operator")),
+):
     run = service.analyze(db, incident_id)
     proposal = db.scalar(select(Proposal).where(Proposal.run_id == run.id))
     return {
@@ -137,13 +141,23 @@ def run(run_id: int, db: Session = Depends(get_db)):
 
 
 @router.post("/approvals/{proposal_id}/approve")
-def approve(proposal_id: int, payload: DecisionIn, db: Session = Depends(get_db)):
-    return service.decide(db, proposal_id, "approved", payload.actor, payload.reason).content
+def approve(
+    proposal_id: int,
+    payload: DecisionIn,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_role("reviewer")),
+):
+    return service.decide(db, proposal_id, "approved", user.email, payload.reason).content
 
 
 @router.post("/approvals/{proposal_id}/reject")
-def reject(proposal_id: int, payload: DecisionIn, db: Session = Depends(get_db)):
-    return service.decide(db, proposal_id, "rejected", payload.actor, payload.reason).content
+def reject(
+    proposal_id: int,
+    payload: DecisionIn,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_role("reviewer")),
+):
+    return service.decide(db, proposal_id, "rejected", user.email, payload.reason).content
 
 
 @router.get("/knowledge/documents")
@@ -155,7 +169,11 @@ def documents(db: Session = Depends(get_db)):
 
 
 @router.post("/knowledge/documents", status_code=201)
-def document(payload: DocumentIn, db: Session = Depends(get_db)):
+def document(
+    payload: DocumentIn,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_role("operator")),
+):
     try:
         doc = ingest(db, **payload.model_dump())
     except IntegrityError as exc:

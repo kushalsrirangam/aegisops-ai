@@ -1,5 +1,7 @@
 # API reference
 
+All `/api/v1` routes except `/health` and `/auth/login` require an `Authorization: Bearer <token>` header. `POST /auth/login` accepts an email and password and returns a 12-hour token. `GET /auth/me` returns the account and role; `POST /auth/logout` revokes the token. Incident creation, analysis, and document ingestion require `operator` or `admin`; proposal approval and rejection require `reviewer` or `admin`. The server records the signed-in reviewer's email as the decision actor.
+
 Base path: `/api/v1`. Interactive schemas are available at `/docs`.
 
 | Resource | Operations |
