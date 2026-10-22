@@ -1,6 +1,7 @@
+from sqlalchemy import select
+
 from app.core.auth import create_user, issue_session
 from app.models.entities import Approval
-from sqlalchemy import select
 
 
 def test_login_logout_and_protected_reads(client, db):
@@ -46,7 +47,14 @@ def test_roles_and_reviewer_identity(client, db):
     ).status_code == 403
 
     client.headers.update({"Authorization": f"Bearer {reviewer_token}"})
-    assert client.post("/api/v1/incidents", json={}).status_code == 403
+    assert client.post(
+        "/api/v1/incidents",
+        json={
+            "title": "Another incident",
+            "description": "Reviewer cannot create an incident",
+            "service": "checkout-api",
+        },
+    ).status_code == 403
     response = client.post(
         f"/api/v1/approvals/{proposal_id}/approve", json={"actor": "spoofed"}
     )
