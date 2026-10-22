@@ -1,4 +1,7 @@
-from app.orchestration.graph import GRAPH, security, validation
+from langgraph.checkpoint.memory import InMemorySaver
+from langgraph.types import Command
+
+from app.orchestration.graph import GRAPH, build_graph, security, validation
 from app.rag.retrieval import ingest, retrieve
 
 SAMPLE = {
@@ -29,6 +32,19 @@ def test_graph_routes_to_approval_then_validation():
     assert final["steps"][-1]["agent"] == "validation"
     rejected = GRAPH.invoke({**state, "decision": "rejected"}, {"recursion_limit": 16})
     assert rejected["phase"] == "rejected"
+
+
+def test_interactive_graph_pauses_and_resumes_from_checkpoint():
+    graph = build_graph(InMemorySaver(), interactive=True)
+    config = {"configurable": {"thread_id": "workflow-test"}, "recursion_limit": 16}
+    pending = graph.invoke({**SAMPLE, "incident_id": 1}, config)
+    assert pending["phase"] == "awaiting_approval"
+    assert pending["__interrupt__"]
+    assert graph.get_state(config).next == ("approval",)
+    result = graph.invoke(Command(resume="approved"), config)
+    assert result["phase"] == "complete"
+    assert len(result["steps"]) == 7
+    assert graph.get_state(config).next == ()
 
 
 def test_low_confidence_escalates():

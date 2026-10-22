@@ -12,6 +12,7 @@ from app.core.auth import create_user, issue_session
 from app.core.db import get_db
 from app.main import app
 from app.models.entities import AgentRun, Approval, KnowledgeChunk, Proposal, Report
+from app.orchestration.checkpointing import workflow_graph
 
 DATABASE_URL = os.getenv("INTEGRATION_DATABASE_URL")
 pytestmark = [
@@ -55,7 +56,7 @@ def test_postgres_workflow(postgres_client, decision, expected_status):
     source = f"integration/{token}/migration-runbook.md"
     with engine.connect() as connection:
         assert connection.scalar(text("SELECT 1 FROM pg_extension WHERE extname = 'vector'")) == 1
-        assert connection.scalar(text("SELECT version_num FROM alembic_version")) == "0002"
+        assert connection.scalar(text("SELECT version_num FROM alembic_version")) == "0003"
         assert connection.scalar(
             text("SELECT format_type(atttypid, atttypmod) FROM pg_attribute "
                  "WHERE attrelid = 'knowledge_chunks'::regclass AND attname = 'embedding'")
@@ -101,6 +102,14 @@ def test_postgres_workflow(postgres_client, decision, expected_status):
     proposal_id = response.json()["proposal_id"]
     assert proposal_id is not None
 
+    # Opening a new saver reads the suspended graph from PostgreSQL, as after a restart.
+    with Session(engine) as session, workflow_graph(session) as graph:
+        checkpoint_thread_id = session.get(AgentRun, run_id).checkpoint_thread_id
+        config = {"configurable": {"thread_id": checkpoint_thread_id}}
+        snapshot = graph.get_state(config)
+        assert snapshot.next == ("approval",)
+        assert snapshot.values["phase"] == "awaiting_approval"
+
     response = client.get(f"/api/v1/agents/runs/{run_id}")
     assert response.status_code == 200
     assert len(response.json()["steps"]) == 6
@@ -129,6 +138,7 @@ def test_postgres_workflow(postgres_client, decision, expected_status):
         run = session.get(AgentRun, run_id)
         proposal = session.get(Proposal, proposal_id)
         assert run.status == expected_status
+        assert run.checkpoint_thread_id == checkpoint_thread_id
         assert len(run.steps) == 7
         assert proposal.status == ("approved" if decision == "approve" else "rejected")
         approval = session.scalar(select(Approval).where(Approval.proposal_id == proposal_id))

@@ -1,6 +1,7 @@
 from typing import Any, TypedDict
 
 from langgraph.graph import END, START, StateGraph
+from langgraph.types import interrupt
 
 
 class IncidentState(TypedDict, total=False):
@@ -151,6 +152,15 @@ def validation(state: IncidentState) -> dict:
     }
 
 
+def approval(state: IncidentState) -> dict:
+    decision = interrupt(
+        {"incident_id": state["incident_id"], "action": state["action"], "risk": state["risk"]}
+    )
+    if decision not in {"approved", "rejected"}:
+        raise ValueError("Approval response must be approved or rejected")
+    return {"decision": decision}
+
+
 def escalation(state: IncidentState) -> dict:
     return {
         "phase": "escalated",
@@ -171,7 +181,7 @@ def after_security(state: IncidentState) -> str:
     return "escalation" if state["blocked"] else END
 
 
-def build_graph():
+def build_graph(checkpointer=None, *, interactive: bool = False):
     graph = StateGraph(IncidentState)
     for name, node in (
         ("triage", triage),
@@ -184,16 +194,24 @@ def build_graph():
         ("escalation", escalation),
     ):
         graph.add_node(name, node)
+    if interactive:
+        graph.add_node("approval", approval)
+        graph.add_edge("approval", "validation")
     graph.add_conditional_edges(START, entry)
     graph.add_edge("triage", "investigation")
     graph.add_edge("investigation", "knowledge")
     graph.add_edge("knowledge", "supervisor")
     graph.add_conditional_edges("supervisor", after_supervisor)
     graph.add_edge("remediation", "security")
-    graph.add_conditional_edges("security", after_security)
+    if interactive:
+        graph.add_conditional_edges(
+            "security", lambda state: "escalation" if state["blocked"] else "approval"
+        )
+    else:
+        graph.add_conditional_edges("security", after_security)
     graph.add_edge("validation", END)
     graph.add_edge("escalation", END)
-    return graph.compile()
+    return graph.compile(checkpointer=checkpointer)
 
 
 GRAPH = build_graph()

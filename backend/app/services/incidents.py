@@ -1,4 +1,7 @@
+from uuid import uuid4
+
 from fastapi import HTTPException
+from langgraph.types import Command
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
@@ -15,6 +18,7 @@ from app.models.entities import (
     Report,
     utcnow,
 )
+from app.orchestration.checkpointing import workflow_graph
 from app.orchestration.graph import GRAPH
 from app.rag.retrieval import retrieve
 
@@ -83,8 +87,11 @@ def analyze(db: Session, incident_id: int) -> AgentRun:
         "mode": incident.mode,
         "steps": [],
     }
+    thread_id = str(uuid4())
+    config = {"configurable": {"thread_id": thread_id}, "recursion_limit": 16}
     try:
-        result = GRAPH.invoke(state, {"recursion_limit": 16})
+        with workflow_graph(db) as graph:
+            result = graph.invoke(state, config)
     except Exception as exc:
         db.add(
             AuditLog(
@@ -95,7 +102,13 @@ def analyze(db: Session, incident_id: int) -> AgentRun:
         )
         db.commit()
         raise HTTPException(500, "Investigation failed") from exc
-    run = AgentRun(incident_id=incident.id, status=result["phase"], state=result)
+    result.pop("__interrupt__", None)
+    run = AgentRun(
+        incident_id=incident.id,
+        status=result["phase"],
+        checkpoint_thread_id=thread_id,
+        state=result,
+    )
     db.add(run)
     db.flush()
     for step in result["steps"]:
@@ -142,7 +155,18 @@ def decide(db: Session, proposal_id: int, decision: str, actor: str, reason: str
         raise HTTPException(403, "Unsafe proposal cannot be approved")
     run = db.get(AgentRun, proposal.run_id)
     incident = get_incident(db, proposal.incident_id)
-    result = GRAPH.invoke({**run.state, "decision": decision}, {"recursion_limit": 16})
+    if run.checkpoint_thread_id:
+        config = {
+            "configurable": {"thread_id": run.checkpoint_thread_id},
+            "recursion_limit": 16,
+        }
+        with workflow_graph(db) as graph:
+            if "approval" not in graph.get_state(config).next:
+                raise HTTPException(409, "Approval checkpoint is not pending")
+            result = graph.invoke(Command(resume=decision), config)
+    else:
+        # Runs created before native checkpointing retain their saved relational state.
+        result = GRAPH.invoke({**run.state, "decision": decision}, {"recursion_limit": 16})
     for step in result["steps"][len(run.state["steps"]) :]:
         db.add(AgentStep(run_id=run.id, **step))
     run.state = result

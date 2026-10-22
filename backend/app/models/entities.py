@@ -40,6 +40,7 @@ class AgentRun(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     incident_id: Mapped[int] = mapped_column(ForeignKey("incidents.id"), index=True)
     status: Mapped[str] = mapped_column(String(30), default="running")
+    checkpoint_thread_id: Mapped[str | None] = mapped_column(String(64), unique=True)
     state: Mapped[dict] = mapped_column(JSON, default=dict)
     started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
