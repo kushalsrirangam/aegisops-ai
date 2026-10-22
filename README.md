@@ -9,7 +9,7 @@ Cloud incident response often starts with scattered alerts, logs, deployment not
 - Creates and persists incidents, events, agent runs, steps, proposals, decisions, reports, and audit records.
 - Runs seven agent roles in a real LangGraph graph with conditional routing and a bounded execution limit.
 - Finds relevant runbook chunks with deterministic local embeddings; PostgreSQL uses pgvector cosine search.
-- Pauses after security review and waits for an API-driven human approval or rejection.
+- Pauses LangGraph after security review, saves a PostgreSQL checkpoint, and resumes after a human approval or rejection.
 - Displays evidence, citations, trace steps, proposal risk, and a clearly labeled simulated outcome. Bedrock approvals remain marked `needs_verification` until an operator checks real recovery.
 - Optionally asks Claude through Amazon Bedrock for a structured root-cause hypothesis based on supplied evidence or read-only CloudWatch logs.
 
@@ -36,7 +36,7 @@ flowchart LR
   H --> V[Validation report]
 ```
 
-The **supervisor** routes by evidence confidence. **Triage** classifies severity and service. **Investigation** correlates log evidence and forms a hypothesis. **Knowledge** supplies cited runbook excerpts. **Remediation** writes a proposal only. **Security** blocks known destructive language and requires review. **Validation** records a simulated result in demo mode; in Bedrock mode it explicitly leaves recovery unverified. The graph has a recursion limit of 16. Run state is stored in the database and passed back to the graph after a decision.
+The **supervisor** routes by evidence confidence. **Triage** classifies severity and service. **Investigation** correlates log evidence and forms a hypothesis. **Knowledge** supplies cited runbook excerpts. **Remediation** writes a proposal only. **Security** blocks known destructive language and requires review. **Validation** records a simulated result in demo mode; in Bedrock mode it explicitly leaves recovery unverified. The graph has a recursion limit of 16. PostgreSQL stores native LangGraph checkpoints for paused runs; relational run state and steps remain available for the dashboard. Approval resumes the same graph thread. Older pending runs created before checkpoints still use their saved relational state.
 
 ## Stack and layout
 
@@ -71,7 +71,7 @@ Copy-Item .env.example .env
 docker compose up --build
 ```
 
-The frontend is at [http://localhost:5173](http://localhost:5173), the API at [http://localhost:8000](http://localhost:8000), and Swagger at [http://localhost:8000/docs](http://localhost:8000/docs). The backend applies migrations and loads one synthetic incident and runbook on startup. Create your first local admin account in another terminal:
+The frontend is at [http://localhost:5173](http://localhost:5173), the API at [http://localhost:8000](http://localhost:8000), and Swagger at [http://localhost:8000/docs](http://localhost:8000/docs). The backend applies migrations, initializes LangGraph checkpoint tables, and loads one synthetic incident and runbook on startup. Create your first local admin account in another terminal:
 
 ```bash
 docker compose exec backend python -m app.core.users_cli create-user --email you@example.com --role admin
@@ -90,6 +90,7 @@ python -m venv .venv
 # Activate the virtual environment for your shell.
 pip install -e '.[dev]'
 alembic upgrade head
+python -m app.orchestration.checkpointing
 python -m app.seed
 uvicorn app.main:app --reload
 ```
@@ -132,7 +133,7 @@ cd ..
 docker compose config
 ```
 
-Tests cover graph routes, confidence escalation, blocked operations, cited retrieval, incident API, authenticated role checks, approval and rejection, failure responses, and a key UI disclosure. Backend CI also starts a fresh PostgreSQL 16 and pgvector service, applies Alembic migrations, and tests vector search plus both decision paths and persisted records. The integration test runs locally when `INTEGRATION_DATABASE_URL` points to a separate migrated test database. [Evaluation notes](docs/evaluation.md) describe what these tests do and do not prove.
+Tests cover graph routes, checkpointed pause and resume, confidence escalation, blocked operations, cited retrieval, incident API, authenticated role checks, approval and rejection, failure responses, and a key UI disclosure. Backend CI also starts a fresh PostgreSQL 16 and pgvector service, applies Alembic migrations, initializes LangGraph tables, and tests vector search plus both decision paths and persisted records. The integration test runs locally when `INTEGRATION_DATABASE_URL` points to a separate migrated test database. [Evaluation notes](docs/evaluation.md) describe what these tests do and do not prove.
 
 ## Bedrock and AWS
 
@@ -153,12 +154,12 @@ This local demo requires sign-in. Operators can create incidents, run investigat
 | CloudWatch logs | Optional read-only integration; fixed log group convention |
 | Live CloudWatch metric mapping | Not implemented |
 | Local authentication and RBAC | Implemented; SSO, MFA, account recovery, and rate limits remain open |
-| Durable LangGraph checkpoint store | Run state is persisted relationally and rehydrated; native LangGraph checkpointing is not implemented |
+| Durable LangGraph checkpoint store | PostgreSQL checkpoints and native approval resume implemented; historical runs retain relational fallback |
 | ECS/Fargate Terraform deployment | IAM policy generation module only; no deployable application stack |
 
 ## Deployment approach and next steps
 
-The [deployment guide](docs/deployment.md) outlines the required VPC, ECS/Fargate, RDS pgvector, secret storage, and IAM boundaries. A production milestone should add authentication/RBAC and a durable LangGraph checkpoint backend, then replace the simple security denylist with reviewed policy rules. No Terraform apply or deployment is triggered by this repository.
+The [deployment guide](docs/deployment.md) outlines the required VPC, ECS/Fargate, RDS pgvector, secret storage, and IAM boundaries. A production milestone should add SSO, MFA, rate limits, and reviewed policy rules. No Terraform apply or deployment is triggered by this repository.
 
 See [architecture](docs/architecture.md), [workflow](docs/agent-workflows.md), [getting started](docs/getting-started.md), [troubleshooting](docs/troubleshooting.md), and [evaluation](docs/evaluation.md).
 

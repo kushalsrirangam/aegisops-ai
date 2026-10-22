@@ -19,6 +19,7 @@ services:
       AWS_REGION: ${AWS_REGION:-us-east-1}
       BEDROCK_MODEL_ID: ${BEDROCK_MODEL_ID:-anthropic.claude-3-5-sonnet-20241022-v2:0}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173}
+      LANGGRAPH_STRICT_MSGPACK: "true"
     ports:
       - "8000:8000"
     depends_on:
