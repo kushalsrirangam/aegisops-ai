@@ -1,4 +1,4 @@
-from app.orchestration.graph import GRAPH, security
+from app.orchestration.graph import GRAPH, security, validation
 from app.rag.retrieval import ingest, retrieve
 
 SAMPLE = {
@@ -39,6 +39,12 @@ def test_low_confidence_escalates():
 def test_security_blocks_destructive_proposal():
     result = security({"steps": [], "action": "drop table customers"})
     assert result["blocked"] is True
+
+
+def test_bedrock_approval_stays_unverified():
+    result = validation({"steps": [], "mode": "bedrock", "decision": "approved"})
+    assert result["phase"] == "needs_verification"
+    assert result["steps"][-1]["result"]["simulated"] is False
 
 
 def test_retrieval_has_attributable_source(db):

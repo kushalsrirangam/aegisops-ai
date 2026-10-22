@@ -15,7 +15,7 @@ export function IncidentDetail() {
   const latest = runs.data?.find(r => r.incident_id === id)
   const run = useQuery({ queryKey: ['run', latest?.id], queryFn: () => api.run(latest!.id), enabled: !!latest })
   const proposal = useQuery({ queryKey: ['proposal', id], queryFn: () => api.proposal(id), enabled: incident.data?.status === 'awaiting_approval' })
-  const report = useQuery({ queryKey: ['report', id], queryFn: () => api.report(id), enabled: ['complete', 'rejected', 'escalated'].includes(incident.data?.status ?? '') })
+  const report = useQuery({ queryKey: ['report', id], queryFn: () => api.report(id), enabled: ['complete', 'rejected', 'escalated', 'needs_verification'].includes(incident.data?.status ?? '') })
   const timeline = useQuery({ queryKey: ['timeline', id], queryFn: () => api.timeline(id) })
   const refresh = () => { for (const key of ['incident', 'incidents', 'summary', 'runs', 'run', 'proposal', 'report', 'timeline']) client.invalidateQueries({ queryKey: [key] }) }
   const analyze = useMutation({ mutationFn: () => api.analyze(id), onSuccess: refresh })

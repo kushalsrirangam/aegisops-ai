@@ -133,13 +133,16 @@ def validation(state: IncidentState) -> dict:
     decision = state.get("decision")
     if decision == "approved" and state.get("mode") == "bedrock":
         outcome = "Proposal approved. Recovery remains unverified; check live metrics after operator action."
+        phase = "needs_verification"
     elif decision == "approved":
         outcome = "Simulated projection: if the reviewed migration succeeds, HTTP 500 errors should stop; no change was executed"
+        phase = "complete"
     else:
         outcome = "Proposal rejected; incident remains unresolved"
+        phase = "rejected"
     return {
         "outcome": outcome,
-        "phase": "complete" if decision == "approved" else "rejected",
+        "phase": phase,
         "steps": _step(
             state,
             "validation",

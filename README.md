@@ -10,7 +10,7 @@ Cloud incident response often starts with scattered alerts, logs, deployment not
 - Runs seven agent roles in a real LangGraph graph with conditional routing and a bounded execution limit.
 - Finds relevant runbook chunks with deterministic local embeddings; PostgreSQL uses pgvector cosine search.
 - Pauses after security review and waits for an API-driven human approval or rejection.
-- Displays evidence, citations, trace steps, proposal risk, and a clearly labeled simulated outcome.
+- Displays evidence, citations, trace steps, proposal risk, and a clearly labeled simulated outcome. Bedrock approvals remain marked `needs_verification` until an operator checks real recovery.
 - Optionally asks Claude through Amazon Bedrock for a structured root-cause hypothesis based on supplied evidence or read-only CloudWatch logs.
 
 ## Architecture
