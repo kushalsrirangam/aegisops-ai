@@ -17,9 +17,8 @@ export default function App() {
   useEffect(() => {
     if (me.isError) {
       sessionStorage.removeItem('aegisops_token')
-      queryClient.clear()
     }
-  }, [me.isError, queryClient])
+  }, [me.isError])
   function signedIn(value: string) {
     sessionStorage.setItem('aegisops_token', value)
     queryClient.clear()
