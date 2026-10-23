@@ -14,20 +14,15 @@ def test_synthetic_benchmark_meets_all_case_expectations():
         }
 
 
-def test_challenge_set_records_current_limits():
+def test_challenge_set_passes_with_correlated_evidence():
     report = run_suite(suite="challenge")
     assert report["case_count"] == 8
-    assert report["passed_cases"] == 4
+    assert report["passed_cases"] == 8
     failures = {item["id"] for item in report["results"] if not item["passed"]}
-    assert failures == {
-        "release_rollout_wording",
-        "other_service_deployment",
-        "stale_deployment",
-        "migration_later_completed",
-    }
+    assert failures == set()
     assert report["proposal_confusion"] == {
-        "true_positive": 1,
-        "false_positive": 3,
-        "true_negative": 3,
-        "false_negative": 1,
+        "true_positive": 2,
+        "false_positive": 0,
+        "true_negative": 6,
+        "false_negative": 0,
     }
