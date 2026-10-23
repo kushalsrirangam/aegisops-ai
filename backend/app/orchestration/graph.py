@@ -3,6 +3,8 @@ from typing import Any, TypedDict
 from langgraph.graph import END, START, StateGraph
 from langgraph.types import interrupt
 
+from app.orchestration.policy import MIGRATION_ACTION, MIGRATION_REVIEW, evaluate_proposal
+
 
 class IncidentState(TypedDict, total=False):
     mode: str
@@ -20,6 +22,9 @@ class IncidentState(TypedDict, total=False):
     hypothesis: str
     confidence: float
     action: str
+    operation: str
+    target_service: str
+    execution_mode: str
     rationale: str
     risk: str
     blocked: bool
@@ -95,13 +100,13 @@ def supervisor(state: IncidentState) -> dict:
 
 
 def remediation(state: IncidentState) -> dict:
-    action = (
-        "Run the reviewed database migration, then redeploy or roll back v2.4.1 "
-        "through the normal release pipeline"
-    )
+    action = MIGRATION_ACTION
     rationale = "The error names a missing column and the deployment introduced its use."
     return {
         "action": action,
+        "operation": MIGRATION_REVIEW,
+        "target_service": state["service"],
+        "execution_mode": "proposal_only",
         "rationale": rationale,
         "risk": "medium",
         "steps": _step(
@@ -109,6 +114,8 @@ def remediation(state: IncidentState) -> dict:
             "remediation",
             {
                 "action": action,
+                "operation": MIGRATION_REVIEW,
+                "target_service": state["service"],
                 "rationale": rationale,
                 "risk": "medium",
                 "execution": "proposal only",
@@ -118,22 +125,12 @@ def remediation(state: IncidentState) -> dict:
 
 
 def security(state: IncidentState) -> dict:
-    blocked = any(
-        word in state.get("action", "").lower()
-        for word in ("delete database", "drop table", "disable audit", "rm -rf")
-    )
+    decision = evaluate_proposal(state)
+    blocked = decision["blocked"]
     return {
         "blocked": blocked,
         "phase": "blocked" if blocked else "awaiting_approval",
-        "steps": _step(
-            state,
-            "security",
-            {
-                "blocked": blocked,
-                "approval_required": True,
-                "allowed_operations": ["recommend", "review"],
-            },
-        ),
+        "steps": _step(state, "security", decision),
     }
 
 
@@ -169,9 +166,14 @@ def approval(state: IncidentState) -> dict:
 
 
 def escalation(state: IncidentState) -> dict:
+    outcome = (
+        "Proposal blocked by review policy; human investigation required"
+        if state.get("blocked")
+        else "Insufficient evidence; human investigation required"
+    )
     return {
         "phase": "escalated",
-        "outcome": "Insufficient evidence; human investigation required",
+        "outcome": outcome,
         "steps": _step(state, "supervisor", {"escalated": True}),
     }
 

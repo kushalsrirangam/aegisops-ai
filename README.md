@@ -36,7 +36,7 @@ flowchart LR
   H --> V[Validation report]
 ```
 
-The **supervisor** routes by evidence confidence. **Triage** classifies severity and service. **Investigation** correlates log evidence and forms a hypothesis. **Knowledge** supplies cited runbook excerpts. **Remediation** writes a proposal only. **Security** blocks known destructive language and requires review. **Validation** records a simulated result in demo mode; in Bedrock mode it explicitly leaves recovery unverified. The graph has a recursion limit of 16. PostgreSQL stores native LangGraph checkpoints for paused runs; relational run state and steps remain available for the dashboard. Approval resumes the same graph thread. Older pending runs created before checkpoints still use their saved relational state.
+The **supervisor** routes by evidence confidence. **Triage** classifies severity and service. **Investigation** correlates log evidence and forms a hypothesis. **Knowledge** supplies cited runbook excerpts. **Remediation** writes a proposal only. **Security** checks the proposal against a deny-by-default review catalog and requires human approval. **Validation** records a simulated result in demo mode; in Bedrock mode it explicitly leaves recovery unverified. The graph has a recursion limit of 16. PostgreSQL stores native LangGraph checkpoints for paused runs; relational run state and steps remain available for the dashboard. Approval resumes the same graph thread. Older pending runs created before checkpoints still use their saved relational state.
 
 ## Stack and layout
 
@@ -150,7 +150,7 @@ Set `APP_MODE=bedrock` for a separate deployment of the backend, configure `AWS_
 
 ## Security and approval model
 
-This local demo requires sign-in. Operators can create incidents, run investigations, and add runbooks; reviewers can approve or reject; admins can do both. Passwords are salted and hashed with scrypt; bearer sessions expire after 12 hours and can be revoked by signing out. Failed-login limits and temporary lockouts persist in PostgreSQL. No default account is shipped. This is still **not a production identity system**: there is no SSO, MFA, or administrative user lifecycle API. Do not expose it publicly. API input is validated; model outputs are schema checked; retrieved runbooks are treated as data; AWS access is read-only; agents never execute shell or infrastructure operations. Approval creates an audit record and advances report generation, never a deployment. The security agent uses a basic denylist, which is not a production policy engine. See [security](docs/security.md).
+This local demo requires sign-in. Operators can create incidents, run investigations, and add runbooks; reviewers can approve or reject; admins can do both. Passwords are salted and hashed with scrypt; bearer sessions expire after 12 hours and can be revoked by signing out. Failed-login limits and temporary lockouts persist in PostgreSQL. No default account is shipped. This is still **not a production identity system**: there is no SSO, MFA, or administrative user lifecycle API. Do not expose it publicly. API input is validated; model outputs are schema checked; retrieved runbooks are treated as data; AWS access is read-only; agents never execute shell or infrastructure operations. Approval creates an audit record and advances report generation, never a deployment. The security agent allows only a cataloged proposal for review; production execution would need separate authorization at the action boundary. See [security](docs/security.md).
 
 ## Demo versus production
 
