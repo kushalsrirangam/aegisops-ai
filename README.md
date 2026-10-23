@@ -81,7 +81,7 @@ The command prompts for a password of at least 12 characters; no shared password
 
 ## Configuration
 
-`.env.example` documents `DATABASE_URL`, `APP_MODE`, `AWS_REGION`, `BEDROCK_MODEL_ID`, and `CORS_ORIGINS`. Compose supplies local database values directly. No secrets are required for demo mode. Do not commit `.env`.
+`.env.example` documents `DATABASE_URL`, `APP_MODE`, AWS settings, and `CORS_ORIGINS`. Compose supplies local database values directly. No secrets are required for demo mode. Do not commit `.env`.
 
 For backend development outside Docker, use a PostgreSQL URL for the `db` service on a published port, or use `DATABASE_URL=sqlite:///./aegisops.db` for lightweight local work. From `backend/`:
 
@@ -137,7 +137,7 @@ Tests cover graph routes, checkpointed pause and resume, confidence escalation, 
 
 ## Bedrock and AWS
 
-Set `APP_MODE=bedrock` for a separate deployment of the backend, configure `AWS_REGION`, `BEDROCK_MODEL_ID`, and AWS credentials through standard AWS environment or role-based resolution. Grant only `bedrock:InvokeModel` for the selected model and `logs:FilterLogEvents` for configured groups; see the [IAM example](infrastructure/terraform/read-only-policy.json). CloudWatch lookup targets `/ecs/aegisops/<service>`. You can supply logs in the incident evidence to avoid that lookup. Bedrock is used for the investigation hypothesis; the other agents currently remain deterministic. Bedrock mode **does not verify recovery** or modify AWS resources. Model access, availability, cost, and permissions are the operator's responsibility.
+Set `APP_MODE=bedrock` for a separate deployment of the backend, configure `AWS_REGION`, `BEDROCK_MODEL_ID`, and AWS credentials through standard AWS environment or role-based resolution. Grant `bedrock:InvokeModel` for the selected model, `logs:FilterLogEvents` for configured groups, and `cloudwatch:GetMetricStatistics` if using metrics; see the [IAM example](infrastructure/terraform/read-only-policy.json). CloudWatch log lookup targets `/ecs/aegisops/<service>`. To read a custom error-rate metric, set `AWS_ERROR_RATE_METRIC_NAMESPACE` to its namespace. The defaults expect a Percent-valued `ErrorRate` metric with dimension `Service=<incident service>`, sampled over the last five minutes. The latest one-minute average is converted to a fraction. Missing datapoints stop analysis with a clear error; an unconfigured metric is labeled unavailable in the trace. Logs or a fractional `error_rate` can be supplied in incident evidence instead. Bedrock is used for the investigation hypothesis; the other agents currently remain deterministic. Bedrock mode **does not verify recovery** or modify AWS resources. Model access, availability, cost, and permissions are the operator's responsibility.
 
 ## Security and approval model
 
@@ -152,7 +152,7 @@ This local demo requires sign-in. Operators can create incidents, run investigat
 | Cited runbook retrieval | Implemented; deterministic embedding quality is limited |
 | Bedrock hypothesis | Optional integration; requires AWS access |
 | CloudWatch logs | Optional read-only integration; fixed log group convention |
-| Live CloudWatch metric mapping | Not implemented |
+| Live CloudWatch metric mapping | Optional, read-only custom Percent `ErrorRate`; requires explicit namespace and dimension mapping |
 | Local authentication and RBAC | Implemented; SSO, MFA, account recovery, and rate limits remain open |
 | Durable LangGraph checkpoint store | PostgreSQL checkpoints and native approval resume implemented; historical runs retain relational fallback |
 | ECS/Fargate Terraform deployment | IAM policy generation module only; no deployable application stack |

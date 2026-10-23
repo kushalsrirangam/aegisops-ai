@@ -8,6 +8,12 @@
       "Resource": "arn:aws:logs:REGION:ACCOUNT_ID:log-group:/ecs/aegisops/*:*"
     },
     {
+      "Sid": "ReadConfiguredCloudWatchMetric",
+      "Effect": "Allow",
+      "Action": ["cloudwatch:GetMetricStatistics"],
+      "Resource": "*"
+    },
+    {
       "Sid": "InvokeConfiguredBedrockModel",
       "Effect": "Allow",
       "Action": ["bedrock:InvokeModel"],

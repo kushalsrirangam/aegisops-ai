@@ -12,7 +12,8 @@ class IncidentState(TypedDict, total=False):
     service: str
     evidence: dict[str, Any]
     logs: list[str]
-    error_rate: float
+    error_rate: float | None
+    metric_source: str
     knowledge: list[dict]
     steps: list[dict]
     severity: str
@@ -32,13 +33,19 @@ def _step(state: IncidentState, agent: str, result: dict) -> list[dict]:
 
 
 def triage(state: IncidentState) -> dict:
-    severity = "critical" if state.get("error_rate", 0) >= 0.3 else "high"
+    severity = "critical" if (state.get("error_rate") or 0) >= 0.3 else "high"
     return {
         "severity": severity,
         "steps": _step(
             state,
             "triage",
-            {"severity": severity, "service": state["service"], "mode": "simulated"},
+            {
+                "severity": severity,
+                "service": state["service"],
+                "mode": "simulated" if state.get("mode") != "bedrock" else "bedrock",
+                "error_rate": state.get("error_rate"),
+                "metric_source": state.get("metric_source", "unavailable"),
+            },
         ),
     }
 

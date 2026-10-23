@@ -1,3 +1,4 @@
+import math
 from uuid import uuid4
 
 from fastapi import HTTPException
@@ -66,15 +67,38 @@ def analyze(db: Session, incident_id: int) -> AgentRun:
         raise HTTPException(409, "Only open incidents can be analyzed")
     settings = get_settings()
     cloud = (
-        MockCloudProvider() if incident.mode == "demo" else CloudWatchProvider(settings.aws_region)
+        MockCloudProvider()
+        if incident.mode == "demo"
+        else CloudWatchProvider(
+            settings.aws_region,
+            metric_namespace=settings.aws_error_rate_metric_namespace,
+            metric_name=settings.aws_error_rate_metric_name,
+            metric_dimension_name=settings.aws_error_rate_metric_dimension_name,
+        )
     )
     try:
         logs = incident.evidence.get("logs") or cloud.logs(incident.service)
-        rate = incident.evidence.get(
-            "error_rate", cloud.error_rate(incident.service) if incident.mode == "demo" else 0.0
-        )
+        if "error_rate" in incident.evidence:
+            rate = incident.evidence["error_rate"]
+            metric_source = "incident evidence"
+        elif incident.mode == "demo":
+            rate = cloud.error_rate(incident.service)
+            metric_source = "simulated"
+        elif settings.aws_error_rate_metric_namespace:
+            rate = cloud.error_rate(incident.service)
+            metric_source = "CloudWatch"
+        else:
+            rate = None
+            metric_source = "unavailable"
     except RuntimeError as exc:
         raise HTTPException(503, str(exc)) from exc
+    if rate is not None and (
+        isinstance(rate, bool)
+        or not isinstance(rate, (int, float))
+        or not math.isfinite(rate)
+        or not 0 <= rate <= 1
+    ):
+        raise HTTPException(422, "Evidence error_rate must be a number between 0 and 1")
     state = {
         "incident_id": incident.id,
         "title": incident.title,
@@ -83,6 +107,7 @@ def analyze(db: Session, incident_id: int) -> AgentRun:
         "evidence": incident.evidence,
         "logs": logs,
         "error_rate": rate,
+        "metric_source": metric_source,
         "knowledge": retrieve(db, incident.title + " " + incident.description),
         "mode": incident.mode,
         "steps": [],
