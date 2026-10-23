@@ -1,12 +1,12 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.security import HTTPAuthorizationCredentials
 from pydantic import BaseModel, Field
-from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.core.auth import bearer, current_user, issue_session, session_for_token, verify_password
+from app.core.auth import bearer, current_user, issue_session, session_for_token
 from app.core.config import get_settings
 from app.core.db import get_db
+from app.core.login_throttle import authenticate
 from app.models.entities import User
 
 router = APIRouter(prefix="/api/v1")
@@ -23,9 +23,12 @@ def health() -> dict:
 
 
 @router.post("/auth/login")
-def login(payload: LoginIn, db: Session = Depends(get_db)):
-    user = db.scalar(select(User).where(User.email == payload.email.strip().lower()))
-    if not user or not user.active or not verify_password(payload.password, user.password_hash):
+def login(payload: LoginIn, request: Request, db: Session = Depends(get_db)):
+    client_ip = request.client.host if request.client else "unknown"
+    user, throttled = authenticate(db, payload.email, payload.password, client_ip)
+    if throttled:
+        raise HTTPException(429, "Too many login attempts. Try again later")
+    if not user:
         raise HTTPException(401, "Invalid credentials")
     token, session = issue_session(db, user)
     return {
