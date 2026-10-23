@@ -77,7 +77,11 @@ def analyze(db: Session, incident_id: int) -> AgentRun:
         )
     )
     try:
-        logs = incident.evidence.get("logs") or cloud.logs(incident.service)
+        logs = (
+            incident.evidence["logs"]
+            if "logs" in incident.evidence
+            else cloud.logs(incident.service)
+        )
         if "error_rate" in incident.evidence:
             rate = incident.evidence["error_rate"]
             metric_source = "incident evidence"
@@ -92,6 +96,8 @@ def analyze(db: Session, incident_id: int) -> AgentRun:
             metric_source = "unavailable"
     except RuntimeError as exc:
         raise HTTPException(503, str(exc)) from exc
+    if not isinstance(logs, list) or any(not isinstance(line, str) for line in logs):
+        raise HTTPException(422, "Evidence logs must be a list of strings")
     if rate is not None and (
         isinstance(rate, bool)
         or not isinstance(rate, (int, float))

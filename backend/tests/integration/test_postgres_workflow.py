@@ -89,7 +89,11 @@ def test_postgres_workflow(postgres_client, decision, expected_status):
             "description": "Checkout requests fail after deployment migration",
             "service": f"checkout-{token[:8]}",
             "evidence": {
-                "logs": ["DatabaseError: column customer_tier does not exist"],
+                "logs": [
+                    "deploy v2.4.1 completed",
+                    "DatabaseError: column customer_tier does not exist",
+                    "migration add_customer_tier pending",
+                ],
                 "error_rate": 0.37,
             },
         },
