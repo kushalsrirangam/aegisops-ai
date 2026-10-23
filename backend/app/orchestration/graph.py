@@ -1,26 +1,10 @@
-import re
 from typing import Any, TypedDict
 
 from langgraph.graph import END, START, StateGraph
 from langgraph.types import interrupt
 
+from app.orchestration.evidence import migration_signals
 from app.orchestration.policy import MIGRATION_ACTION, MIGRATION_REVIEW, evaluate_proposal
-
-MISSING_COLUMN = re.compile(
-    r'\bcolumn\s+(?:"[^"]+"|[\w.]+)\s+does\s+not\s+exist\b', re.IGNORECASE
-)
-DEPLOY_EVENT = re.compile(
-    r"\bdeploy(?:ment)?\s+(?:v?\d[\w.-]*\s+)?(?:completed|succeeded)\b"
-    r"|\bafter\s+deploy(?:ment)?\s+v\d[\w.-]*",
-    re.IGNORECASE,
-)
-NEGATED_DEPLOY = re.compile(
-    r"\b(?:no|not|never|without)\b.{0,32}\bdeploy(?:ment)?\b", re.IGNORECASE
-)
-PENDING_MIGRATION = re.compile(r"\bmigration\b.*\bpending\b", re.IGNORECASE)
-NEGATED_MIGRATION = re.compile(
-    r"\b(?:no|not|never|without)\b.{0,32}\bmigration\b", re.IGNORECASE
-)
 
 
 class IncidentState(TypedDict, total=False):
@@ -81,26 +65,15 @@ def investigation(state: IncidentState) -> dict:
         finding = BedrockReasoner().investigate(state["description"], logs)
         hypothesis, confidence = finding["hypothesis"], finding["confidence"]
     else:
-        missing_column = any(MISSING_COLUMN.search(line) for line in logs)
-        deployment = any(
-            DEPLOY_EVENT.search(line) and not NEGATED_DEPLOY.search(line) for line in logs
-        )
-        migration_pending = any(
-            PENDING_MIGRATION.search(line) and not NEGATED_MIGRATION.search(line) for line in logs
-        )
-        migration = missing_column and deployment and migration_pending
+        signals = migration_signals(logs, state["service"])
+        migration = signals["corroborated_migration"]
         if migration:
             hypothesis = "Deployment references a database column before its migration ran"
-        elif missing_column:
+        elif signals["missing_column"]:
             hypothesis = "A missing column error was observed; cause needs further evidence"
         else:
             hypothesis = "Cause needs further evidence from available logs"
         confidence = 0.92 if migration else 0.45
-        signals = {
-            "missing_column": missing_column,
-            "deployment": deployment,
-            "migration_pending": migration_pending,
-        }
     finding = {"hypothesis": hypothesis, "confidence": confidence, "evidence": logs[:5]}
     if signals is not None:
         finding["signals"] = signals
