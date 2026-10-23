@@ -1,0 +1,143 @@
+[
+  {
+    "id": "quoted_missing_column",
+    "title": "Checkout failure after rollout",
+    "description": "New checkout release has a schema error.",
+    "service": "checkout-api",
+    "logs": [
+      "checkout-api deploy v3.2 completed",
+      "DatabaseError: column \"customer_tier\" does not exist",
+      "migration add_customer_tier pending"
+    ],
+    "error_rate": 0.38,
+    "knowledge": [{
+      "source": "runbooks/checkout-schema.md",
+      "title": "Checkout schema review",
+      "excerpt": "Check the pending migration against the deployed release."
+    }],
+    "expected": {
+      "hypothesis": "migration", "confidence": "high", "phase": "awaiting_approval",
+      "citations": ["runbooks/checkout-schema.md"], "proposal": true,
+      "deployment_claim": true
+    }
+  },
+  {
+    "id": "release_rollout_wording",
+    "title": "Checkout error after release rollout",
+    "description": "The release rollout completed before errors began.",
+    "service": "checkout-api",
+    "logs": [
+      "checkout-api release v3.2 rolled out successfully",
+      "DatabaseError: column customer_tier does not exist",
+      "migration add_customer_tier pending"
+    ],
+    "error_rate": 0.38,
+    "knowledge": [],
+    "expected": {
+      "hypothesis": "migration", "confidence": "high", "phase": "awaiting_approval",
+      "citations": [], "proposal": true, "deployment_claim": true
+    }
+  },
+  {
+    "id": "other_service_deployment",
+    "title": "Orders schema error during payments release",
+    "description": "Orders fails while payments deploys.",
+    "service": "orders-api",
+    "logs": [
+      "payments-api deploy v3.0 completed",
+      "orders-api DatabaseError: column legacy_flag does not exist",
+      "orders-api migration add_legacy_flag pending"
+    ],
+    "error_rate": 0.34,
+    "knowledge": [],
+    "expected": {
+      "hypothesis": "uncertain", "confidence": "low", "phase": "escalated",
+      "citations": [], "proposal": false, "deployment_claim": false
+    }
+  },
+  {
+    "id": "stale_deployment",
+    "title": "Orders schema error a week after release",
+    "description": "The only deployment log is from last week.",
+    "service": "orders-api",
+    "logs": [
+      "last week: orders-api deploy v3.0 completed",
+      "today: DatabaseError: column legacy_flag does not exist",
+      "today: migration add_legacy_flag pending"
+    ],
+    "error_rate": 0.34,
+    "knowledge": [],
+    "expected": {
+      "hypothesis": "uncertain", "confidence": "low", "phase": "escalated",
+      "citations": [], "proposal": false, "deployment_claim": false
+    }
+  },
+  {
+    "id": "migration_later_completed",
+    "title": "Schema error after migration completed",
+    "description": "Migration state changed after an earlier pending event.",
+    "service": "orders-api",
+    "logs": [
+      "10:02 orders-api deploy v3.0 completed",
+      "10:03 migration add_legacy_flag pending",
+      "10:04 migration add_legacy_flag completed",
+      "10:05 DatabaseError: column legacy_flag does not exist"
+    ],
+    "error_rate": 0.34,
+    "knowledge": [],
+    "expected": {
+      "hypothesis": "uncertain", "confidence": "low", "phase": "escalated",
+      "citations": [], "proposal": false, "deployment_claim": false
+    }
+  },
+  {
+    "id": "explicit_no_pending_migration",
+    "title": "Schema error without pending migration",
+    "description": "A deploy occurred but migration status is explicitly negative.",
+    "service": "orders-api",
+    "logs": [
+      "orders-api deploy v3.0 completed",
+      "DatabaseError: column legacy_flag does not exist",
+      "No migration pending"
+    ],
+    "error_rate": 0.34,
+    "knowledge": [],
+    "expected": {
+      "hypothesis": "uncertain", "confidence": "low", "phase": "escalated",
+      "citations": [], "proposal": false, "deployment_claim": false
+    }
+  },
+  {
+    "id": "missing_relation_not_column",
+    "title": "Missing table after deployment",
+    "description": "A relation is missing, not a column.",
+    "service": "orders-api",
+    "logs": [
+      "orders-api deploy v3.0 completed",
+      "DatabaseError: relation orders_archive does not exist",
+      "migration create_archive pending"
+    ],
+    "error_rate": 0.34,
+    "knowledge": [],
+    "expected": {
+      "hypothesis": "uncertain", "confidence": "low", "phase": "escalated",
+      "citations": [], "proposal": false, "deployment_claim": false
+    }
+  },
+  {
+    "id": "migration_state_unknown",
+    "title": "Missing column with unverified migration state",
+    "description": "A deploy and schema error are observed, but migration status is absent.",
+    "service": "orders-api",
+    "logs": [
+      "orders-api deploy v3.0 completed",
+      "DatabaseError: column legacy_flag does not exist"
+    ],
+    "error_rate": 0.34,
+    "knowledge": [],
+    "expected": {
+      "hypothesis": "uncertain", "confidence": "low", "phase": "escalated",
+      "citations": [], "proposal": false, "deployment_claim": false
+    }
+  }
+]
