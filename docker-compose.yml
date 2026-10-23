@@ -17,6 +17,9 @@ services:
       DATABASE_URL: postgresql+psycopg://aegisops:aegisops@db:5432/aegisops
       APP_MODE: ${APP_MODE:-demo}
       AWS_REGION: ${AWS_REGION:-us-east-1}
+      AWS_ERROR_RATE_METRIC_NAMESPACE: ${AWS_ERROR_RATE_METRIC_NAMESPACE:-}
+      AWS_ERROR_RATE_METRIC_NAME: ${AWS_ERROR_RATE_METRIC_NAME:-ErrorRate}
+      AWS_ERROR_RATE_METRIC_DIMENSION_NAME: ${AWS_ERROR_RATE_METRIC_DIMENSION_NAME:-Service}
       BEDROCK_MODEL_ID: ${BEDROCK_MODEL_ID:-anthropic.claude-3-5-sonnet-20241022-v2:0}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173}
       LANGGRAPH_STRICT_MSGPACK: "true"
