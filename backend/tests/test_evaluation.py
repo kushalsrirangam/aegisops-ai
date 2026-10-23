@@ -1,17 +1,13 @@
 from app.evaluation.run import run_suite
 
 
-def test_synthetic_benchmark_records_known_false_positives():
+def test_synthetic_benchmark_meets_all_case_expectations():
     report = run_suite()
     assert report["case_count"] == 6
-    assert report["passed_cases"] == 1
-    assert report["check_pass_counts"]["citations"] == 6
-    assert report["check_pass_counts"]["deployment_claim"] == 1
+    assert report["passed_cases"] == 6
+    assert all(count == 6 for count in report["check_pass_counts"].values())
     failures = {item["id"] for item in report["results"] if not item["passed"]}
-    assert failures == {
-        "cache_timeout", "upstream_unavailable", "no_evidence",
-        "benign_column_mention", "missing_column_without_deploy"
-    }
+    assert failures == set()
     for item in report["results"]:
         assert set(item["checks"]) == {
             "hypothesis", "confidence", "phase", "citations", "proposal", "deployment_claim"

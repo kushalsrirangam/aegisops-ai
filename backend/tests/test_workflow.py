@@ -9,7 +9,11 @@ SAMPLE = {
     "title": "Checkout returns HTTP 500",
     "description": "Failure after deployment",
     "service": "checkout-api",
-    "logs": ["DatabaseError: column customer_tier does not exist"],
+    "logs": [
+        "10:02 deploy v2.4.1 completed",
+        "DatabaseError: column customer_tier does not exist",
+        "Migration add_customer_tier pending",
+    ],
     "error_rate": 0.37,
     "knowledge": [],
     "steps": [],
@@ -53,6 +57,34 @@ def test_low_confidence_escalates():
     result = GRAPH.invoke({**SAMPLE, "logs": ["HTTP 500"]}, {"recursion_limit": 16})
     assert result["phase"] == "escalated"
     assert result["outcome"] == "Insufficient evidence; human investigation required"
+
+
+def test_incomplete_or_negated_migration_evidence_escalates():
+    cases = (
+        ["DatabaseError: column customer_tier does not exist", "deploy v2.4.1 completed"],
+        ["DatabaseError: column customer_tier does not exist", "migration pending"],
+        [
+            "DatabaseError: column customer_tier does not exist",
+            "No deployment completed",
+            "migration pending",
+        ],
+        [
+            "deploy v2.4.1 completed",
+            "DatabaseError: column customer_tier does not exist",
+            "No migration pending",
+        ],
+        [
+            "Analytics: SELECT column_name from dashboard_metadata succeeded",
+            "deploy v2.4.1 completed",
+            "migration pending",
+        ],
+    )
+    for logs in cases:
+        result = GRAPH.invoke({**SAMPLE, "logs": logs}, {"recursion_limit": 16})
+        assert result["phase"] == "escalated"
+        assert result["confidence"] < 0.6
+        assert "deployment" not in result["hypothesis"].lower()
+        assert not any(step["agent"] == "remediation" for step in result["steps"])
 
 
 def test_security_blocks_destructive_proposal():
@@ -154,3 +186,20 @@ def test_rejection_and_validation_errors(client):
         f"/api/v1/approvals/{proposal_id}/reject", json={"actor": "operator", "reason": "defer"}
     )
     assert rejected.json()["status"] == "rejected"
+
+
+def test_explicit_empty_logs_do_not_use_synthetic_cloud_logs(client):
+    created = client.post(
+        "/api/v1/incidents",
+        json={
+            "title": "No logs available",
+            "description": "An error-rate alarm fired without logs",
+            "service": "catalog-api",
+            "evidence": {"logs": [], "error_rate": 0.33},
+        },
+    ).json()
+    analyzed = client.post(f"/api/v1/incidents/{created['id']}/analyze")
+    assert analyzed.status_code == 200
+    assert analyzed.json()["status"] == "escalated"
+    run = client.get(f"/api/v1/agents/runs/{analyzed.json()['run_id']}").json()
+    assert run["steps"][1]["result"]["evidence"] == []
