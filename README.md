@@ -79,6 +79,15 @@ docker compose exec backend python -m app.core.users_cli create-user --email you
 
 The command prompts for a password of at least 12 characters; no shared password is shipped. Sign in at the frontend, open the seeded incident, select **Run investigation**, review the trace and proposal, then approve or reject it. Both paths persist a report. `docker compose down` stops services; `docker compose down -v` also removes local database data.
 
+Five failed sign-ins for one account or 30 from one client IP within 15 minutes trigger a 15-minute cooldown. A local administrator can clear an account lock or set a new password, which revokes that account's sessions:
+
+```bash
+docker compose exec backend python -m app.core.users_cli unlock-user --email you@example.com
+docker compose exec backend python -m app.core.users_cli reset-password --email you@example.com
+```
+
+The reset command prompts for the new password. The IP cooldown remains in force; wait for it to expire if the same client IP was also throttled.
+
 ## Configuration
 
 `.env.example` documents `DATABASE_URL`, `APP_MODE`, AWS settings, and `CORS_ORIGINS`. Compose supplies local database values directly. No secrets are required for demo mode. Do not commit `.env`.
@@ -141,7 +150,7 @@ Set `APP_MODE=bedrock` for a separate deployment of the backend, configure `AWS_
 
 ## Security and approval model
 
-This local demo requires sign-in. Operators can create incidents, run investigations, and add runbooks; reviewers can approve or reject; admins can do both. Passwords are salted and hashed with scrypt; bearer sessions expire after 12 hours and can be revoked by signing out. No default account is shipped. This is still **not a production identity system**: there is no SSO, account lockout, MFA, or administrative user lifecycle API. Do not expose it publicly. API input is validated; model outputs are schema checked; retrieved runbooks are treated as data; AWS access is read-only; agents never execute shell or infrastructure operations. Approval creates an audit record and advances report generation, never a deployment. The security agent uses a basic denylist, which is not a production policy engine. See [security](docs/security.md).
+This local demo requires sign-in. Operators can create incidents, run investigations, and add runbooks; reviewers can approve or reject; admins can do both. Passwords are salted and hashed with scrypt; bearer sessions expire after 12 hours and can be revoked by signing out. Failed-login limits and temporary lockouts persist in PostgreSQL. No default account is shipped. This is still **not a production identity system**: there is no SSO, MFA, or administrative user lifecycle API. Do not expose it publicly. API input is validated; model outputs are schema checked; retrieved runbooks are treated as data; AWS access is read-only; agents never execute shell or infrastructure operations. Approval creates an audit record and advances report generation, never a deployment. The security agent uses a basic denylist, which is not a production policy engine. See [security](docs/security.md).
 
 ## Demo versus production
 
@@ -153,7 +162,7 @@ This local demo requires sign-in. Operators can create incidents, run investigat
 | Bedrock hypothesis | Optional integration; requires AWS access |
 | CloudWatch logs | Optional read-only integration; fixed log group convention |
 | Live CloudWatch metric mapping | Optional, read-only custom Percent `ErrorRate`; requires explicit namespace and dimension mapping |
-| Local authentication and RBAC | Implemented; SSO, MFA, account recovery, and rate limits remain open |
+| Local authentication and RBAC | Implemented with temporary login lockouts and local recovery commands; SSO, MFA, and account lifecycle API remain open |
 | Durable LangGraph checkpoint store | PostgreSQL checkpoints and native approval resume implemented; historical runs retain relational fallback |
 | ECS/Fargate Terraform deployment | IAM policy generation module only; no deployable application stack |
 

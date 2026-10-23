@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 
 from app.core.auth import create_user, issue_session
 from app.core.db import get_db
+from app.core.login_throttle import ACCOUNT_FAILURE_LIMIT, authenticate
 from app.main import app
 from app.models.entities import AgentRun, Approval, KnowledgeChunk, Proposal, Report
 from app.orchestration.checkpointing import workflow_graph
@@ -56,7 +57,7 @@ def test_postgres_workflow(postgres_client, decision, expected_status):
     source = f"integration/{token}/migration-runbook.md"
     with engine.connect() as connection:
         assert connection.scalar(text("SELECT 1 FROM pg_extension WHERE extname = 'vector'")) == 1
-        assert connection.scalar(text("SELECT version_num FROM alembic_version")) == "0003"
+        assert connection.scalar(text("SELECT version_num FROM alembic_version")) == "0004"
         assert connection.scalar(
             text("SELECT format_type(atttypid, atttypmod) FROM pg_attribute "
                  "WHERE attrelid = 'knowledge_chunks'::regclass AND attname = 'embedding'")
@@ -145,3 +146,18 @@ def test_postgres_workflow(postgres_client, decision, expected_status):
         assert approval.decision == proposal.status
         report = session.scalar(select(Report).where(Report.incident_id == incident_id))
         assert report.content["status"] == expected_status
+
+
+def test_postgres_login_limit_survives_new_sessions(postgres_client):
+    _, engine = postgres_client
+    email = f"throttle-{uuid4().hex}@example.test"
+    with Session(engine) as session:
+        create_user(session, email, "strong-test-password", "operator")
+    for attempt in range(ACCOUNT_FAILURE_LIMIT):
+        with Session(engine) as session:
+            user, throttled = authenticate(session, email, "wrong", "integration-ip")
+            assert user is None
+            assert throttled is (attempt == ACCOUNT_FAILURE_LIMIT - 1)
+    with Session(engine) as session:
+        user, throttled = authenticate(session, email, "strong-test-password", "new-ip")
+        assert user is None and throttled

@@ -30,7 +30,7 @@ def upgrade() -> None:
     tables = [
         table
         for table in Base.metadata.sorted_tables
-        if table.name not in {"users", "auth_sessions"}
+        if table.name not in {"users", "auth_sessions", "login_throttles"}
     ]
     Base.metadata.create_all(bind=op.get_bind(), tables=tables)
 
