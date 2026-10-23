@@ -2,6 +2,7 @@ from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.types import Command
 
 from app.orchestration.graph import GRAPH, build_graph, security, validation
+from app.orchestration.policy import MIGRATION_ACTION, MIGRATION_REVIEW
 from app.rag.retrieval import ingest, retrieve
 
 SAMPLE = {
@@ -18,6 +19,7 @@ SAMPLE = {
 def test_graph_routes_to_approval_then_validation():
     state = GRAPH.invoke(SAMPLE, {"recursion_limit": 16})
     assert state["phase"] == "awaiting_approval"
+    assert state["steps"][-1]["result"]["reason"] == "allowed_for_review"
     assert [s["agent"] for s in state["steps"]] == [
         "triage",
         "investigation",
@@ -50,11 +52,38 @@ def test_interactive_graph_pauses_and_resumes_from_checkpoint():
 def test_low_confidence_escalates():
     result = GRAPH.invoke({**SAMPLE, "logs": ["HTTP 500"]}, {"recursion_limit": 16})
     assert result["phase"] == "escalated"
+    assert result["outcome"] == "Insufficient evidence; human investigation required"
 
 
 def test_security_blocks_destructive_proposal():
     result = security({"steps": [], "action": "drop table customers"})
     assert result["blocked"] is True
+
+
+def test_security_denies_proposals_outside_exact_review_policy():
+    proposal = {
+        "steps": [],
+        "service": "checkout-api",
+        "target_service": "checkout-api",
+        "operation": MIGRATION_REVIEW,
+        "execution_mode": "proposal_only",
+        "risk": "medium",
+        "action": MIGRATION_ACTION,
+    }
+    assert security(proposal)["steps"][-1]["result"]["reason"] == "allowed_for_review"
+    cases = (
+        ({"operation": "delete_database"}, "operation_not_allowed"),
+        ({"target_service": "payments"}, "target_service_mismatch"),
+        ({"execution_mode": "execute"}, "execution_not_allowed"),
+        ({"risk": "high"}, "risk_mismatch"),
+        ({"action": "drop table customers"}, "action_mismatch"),
+    )
+    for change, reason in cases:
+        result = security({**proposal, **change})
+        assert result["blocked"] is True
+        assert result["phase"] == "blocked"
+        assert result["steps"][-1]["result"]["reason"] == reason
+        assert result["steps"][-1]["result"]["execution_allowed"] is False
 
 
 def test_bedrock_approval_stays_unverified():
