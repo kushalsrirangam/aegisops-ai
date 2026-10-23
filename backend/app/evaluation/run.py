@@ -1,11 +1,15 @@
 """Run the versioned synthetic incident benchmark without writing application data."""
 
+import argparse
 import json
 from pathlib import Path
 
 from app.orchestration.graph import GRAPH
 
-CASES = Path(__file__).with_name("cases.json")
+SUITES = {
+    "core": Path(__file__).with_name("cases.json"),
+    "challenge": Path(__file__).with_name("challenge_cases.json"),
+}
 CHECKS = ("hypothesis", "confidence", "phase", "citations", "proposal", "deployment_claim")
 
 
@@ -40,19 +44,33 @@ def evaluate_case(case: dict) -> dict:
     }
 
 
-def run_suite(cases: list[dict] | None = None) -> dict:
-    cases = json.loads(CASES.read_text(encoding="utf-8")) if cases is None else cases
+def run_suite(cases: list[dict] | None = None, *, suite: str = "core") -> dict:
+    cases = json.loads(SUITES[suite].read_text(encoding="utf-8")) if cases is None else cases
     results = [evaluate_case(case) for case in cases]
+    proposal_pairs = [
+        (case["expected"]["proposal"], result["observed"]["proposal"])
+        for case, result in zip(cases, results)
+    ]
     return {
         "mode": "deterministic_demo",
+        "suite": suite,
         "case_count": len(results),
         "passed_cases": sum(item["passed"] for item in results),
         "check_pass_counts": {
             name: sum(item["checks"][name] for item in results) for name in CHECKS
+        },
+        "proposal_confusion": {
+            "true_positive": proposal_pairs.count((True, True)),
+            "false_positive": proposal_pairs.count((False, True)),
+            "true_negative": proposal_pairs.count((False, False)),
+            "false_negative": proposal_pairs.count((True, False)),
         },
         "results": results,
     }
 
 
 if __name__ == "__main__":
-    print(json.dumps(run_suite(), indent=2))
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--suite", choices=SUITES, default="core")
+    args = parser.parse_args()
+    print(json.dumps(run_suite(suite=args.suite), indent=2))
