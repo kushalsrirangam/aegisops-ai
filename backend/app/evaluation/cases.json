@@ -1,0 +1,116 @@
+[
+  {
+    "id": "missing_column_after_deploy",
+    "title": "Checkout HTTP 500 after v2.4.1",
+    "description": "Checkout failures began after a release.",
+    "service": "checkout-api",
+    "logs": [
+      "10:02 deploy v2.4.1 completed",
+      "10:04 DatabaseError: column customer_tier does not exist",
+      "10:05 migration add_customer_tier pending"
+    ],
+    "error_rate": 0.37,
+    "knowledge": [{
+      "source": "runbooks/http-500-after-deploy.md",
+      "title": "HTTP 500 after deploy",
+      "excerpt": "Verify the pending migration before redeployment or rollback."
+    }],
+    "expected": {
+      "hypothesis": "migration",
+      "confidence": "high",
+      "phase": "awaiting_approval",
+      "citations": ["runbooks/http-500-after-deploy.md"],
+      "proposal": true,
+      "deployment_claim": true
+    }
+  },
+  {
+    "id": "cache_timeout",
+    "title": "Checkout cache timeout",
+    "description": "Requests fail while the cache is unavailable.",
+    "service": "checkout-api",
+    "logs": ["RedisTimeout: cache connection timed out", "No deployment in this window"],
+    "error_rate": 0.32,
+    "knowledge": [],
+    "expected": {
+      "hypothesis": "uncertain",
+      "confidence": "low",
+      "phase": "escalated",
+      "citations": [],
+      "proposal": false,
+      "deployment_claim": false
+    }
+  },
+  {
+    "id": "upstream_unavailable",
+    "title": "Payments upstream unavailable",
+    "description": "Payments calls return 503 from an upstream provider.",
+    "service": "payments-api",
+    "logs": ["UpstreamError: provider returned 503", "Retry budget exhausted"],
+    "error_rate": 0.41,
+    "knowledge": [{
+      "source": "runbooks/upstream-503.md",
+      "title": "Upstream failures",
+      "excerpt": "Check provider status and retry saturation."
+    }],
+    "expected": {
+      "hypothesis": "uncertain",
+      "confidence": "low",
+      "phase": "escalated",
+      "citations": ["runbooks/upstream-503.md"],
+      "proposal": false,
+      "deployment_claim": false
+    }
+  },
+  {
+    "id": "no_evidence",
+    "title": "Unexplained API errors",
+    "description": "Error-rate alarm fired with no logs available.",
+    "service": "catalog-api",
+    "logs": [],
+    "error_rate": 0.33,
+    "knowledge": [],
+    "expected": {
+      "hypothesis": "uncertain",
+      "confidence": "low",
+      "phase": "escalated",
+      "citations": [],
+      "proposal": false,
+      "deployment_claim": false
+    }
+  },
+  {
+    "id": "benign_column_mention",
+    "title": "Dashboard query during API errors",
+    "description": "Errors coincide with an unrelated analytics query.",
+    "service": "catalog-api",
+    "logs": ["Analytics: SELECT column_name from dashboard_metadata succeeded", "HTTP 500 cause unknown"],
+    "error_rate": 0.34,
+    "knowledge": [],
+    "expected": {
+      "hypothesis": "uncertain",
+      "confidence": "low",
+      "phase": "escalated",
+      "citations": [],
+      "proposal": false,
+      "deployment_claim": false
+    }
+  },
+  {
+    "id": "missing_column_without_deploy",
+    "title": "Missing column with no release evidence",
+    "description": "A database schema error appears without deployment evidence.",
+    "service": "orders-api",
+    "logs": ["DatabaseError: column legacy_flag does not exist", "No release recorded today"],
+    "error_rate": 0.31,
+    "knowledge": [],
+    "expected": {
+      "hypothesis": "uncertain",
+      "confidence": "low",
+      "phase": "escalated",
+      "citations": [],
+      "proposal": false,
+      "deployment_claim": false
+    }
+  }
+]
